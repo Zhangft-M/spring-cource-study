@@ -115,6 +115,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 
 
 	/**
+	 * 注册bean的核心方法
 	 * Register each bean definition within the given root {@code <beans/>} element.
 	 */
 	@SuppressWarnings("deprecation")  // for Environment.acceptsProfiles(String...)
@@ -145,8 +146,11 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 			}
 		}
 
+		// 注册之前处理逻辑，默认空实现
 		preProcessXml(root);
+		// 解析,并且注册
 		parseBeanDefinitions(root, this.delegate);
+		// 解析之后的处理逻辑，默认空实现
 		postProcessXml(root);
 
 		this.delegate = parent;
@@ -194,6 +198,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 			processAliasRegistration(ele);
 		}
 		else if (delegate.nodeNameEquals(ele, BEAN_ELEMENT)) {
+			// 处理bean注册逻辑,处理每个<bean></bean>标签
 			processBeanDefinition(ele, delegate);
 		}
 		else if (delegate.nodeNameEquals(ele, NESTED_BEANS_ELEMENT)) {
@@ -299,6 +304,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 	}
 
 	/**
+	 * 处理bean标签，解析成beanDefinition
 	 * Process the given bean element, parsing the bean definition
 	 * and registering it with the registry.
 	 */

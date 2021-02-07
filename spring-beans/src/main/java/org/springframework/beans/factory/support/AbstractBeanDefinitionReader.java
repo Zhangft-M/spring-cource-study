@@ -196,6 +196,7 @@ public abstract class AbstractBeanDefinitionReader implements BeanDefinitionRead
 	}
 
 	/**
+	 * todo:将配置文件加载成Resource资源，再解析
 	 * Load bean definitions from the specified resource location.
 	 * <p>The location can also be a location pattern, provided that the
 	 * ResourceLoader of this bean definition reader is a ResourcePatternResolver.
@@ -220,7 +221,9 @@ public abstract class AbstractBeanDefinitionReader implements BeanDefinitionRead
 		if (resourceLoader instanceof ResourcePatternResolver) {
 			// Resource pattern matching available.
 			try {
+				// 加载资源
 				Resource[] resources = ((ResourcePatternResolver) resourceLoader).getResources(location);
+				// 加载beanDefinition，返回被加载的数量,一个<bean></bean>标签代表这一个beanDefinition
 				int count = loadBeanDefinitions(resources);
 				if (actualResources != null) {
 					Collections.addAll(actualResources, resources);
@@ -253,6 +256,7 @@ public abstract class AbstractBeanDefinitionReader implements BeanDefinitionRead
 	public int loadBeanDefinitions(String... locations) throws BeanDefinitionStoreException {
 		Assert.notNull(locations, "Location array must not be null");
 		int count = 0;
+		// 每一个location对应着一个Resource资源
 		for (String location : locations) {
 			count += loadBeanDefinitions(location);
 		}

@@ -56,6 +56,30 @@ final class PostProcessorRegistrationDelegate {
 	}
 
 
+	/**
+	 * 如果bean工厂实现了BeanDefinitionRegistry有注册beanDefinition功能,可以增强beanDefinition则进行以下操作:
+	 * 该方法主要是对beanFactory或者beanDefinition做增强处理，
+	 * 先调用实现了BeanDefinitionRegistryPostProcessor的接口的方法对beanDefinition做增强处理
+	 * {@link BeanDefinitionRegistryPostProcessor#postProcessBeanDefinitionRegistry(org.springframework.beans.factory.support.BeanDefinitionRegistry)}
+	 * 再调用实现了BeanFactoryPostProcessor的接口的方法,对BeanFactory做增强处理
+	 * {@link BeanFactoryPostProcessor#postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * 猜测：
+	 * ----------------------------------------------------------------------------
+	 * 自定义beanFactory然后再自定义注册BeanDefinitionRegistryPostProcessor
+	 * 在{@link AbstractApplicationContext#prepareBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * 注册bean，此时在这里就可以调用增强方法
+	 * ------------------------------------------------------------------------------
+	 * 也可以直接定义一个bean实现该接口
+	 * {@link DefaultListableBeanFactory#doGetBeanNamesForType(org.springframework.core.ResolvableType, boolean, boolean)}
+	 * 该方法会先从beanDefinitionNames中寻找是否存在合适的bean的名称，再从manualSingletonNames寻找是否存在合适的bean的名称
+	 *
+	 * 最后的操作,主要是对bean工厂增强方法再进行调用
+	 * 如果bean工厂没有实现BeanDefinitionRegistry接口，则将只有对bean工厂增强，不能操作beanDefinition
+	 * 还是会根据实现了接口来决定调用顺序,如果之前以及被调用过就不会再被调用了
+	 * 此时只会调用{@link BeanFactoryPostProcessor#postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * @param beanFactory
+	 * @param beanFactoryPostProcessors
+	 */
 	public static void invokeBeanFactoryPostProcessors(
 			ConfigurableListableBeanFactory beanFactory, List<BeanFactoryPostProcessor> beanFactoryPostProcessors) {
 
@@ -98,18 +122,29 @@ final class PostProcessorRegistrationDelegate {
 			// PriorityOrdered, Ordered, and the rest.
 			List<BeanDefinitionRegistryPostProcessor> currentRegistryProcessors = new ArrayList<>();
 
+			// 从bean工厂查找上一步prepareBeanFactory注册的bean
 			// First, invoke the BeanDefinitionRegistryPostProcessors that implement PriorityOrdered.
 			String[] postProcessorNames =
 					beanFactory.getBeanNamesForType(BeanDefinitionRegistryPostProcessor.class, true, false);
 			for (String ppName : postProcessorNames) {
+				// 首先会调用实现了PriorityOrdered接口的bean方法
 				if (beanFactory.isTypeMatch(ppName, PriorityOrdered.class)) {
+					/**
+					 * 此时会调用
+					 * {@link AbstractBeanFactory#doGetBean(java.lang.String, java.lang.Class, java.lang.Object[], boolean)}
+					 * 这就是说实现了Processor的接口的bean会先被实例化
+					 * interesting！！！！！！！！！！！！！！！！！！！！
+					 */
 					currentRegistryProcessors.add(beanFactory.getBean(ppName, BeanDefinitionRegistryPostProcessor.class));
+					// 将bean的名称加入进来避免后续的重复调用
 					processedBeans.add(ppName);
 				}
 			}
 			sortPostProcessors(currentRegistryProcessors, beanFactory);
 			registryProcessors.addAll(currentRegistryProcessors);
+			// 调用方法
 			invokeBeanDefinitionRegistryPostProcessors(currentRegistryProcessors, registry, beanFactory.getApplicationStartup());
+			// 移除掉现有的Processors,下面继续重复上述操作，不同的是下面执行的是实现了Ordered接口的Processors
 			currentRegistryProcessors.clear();
 
 			// Next, invoke the BeanDefinitionRegistryPostProcessors that implement Ordered.
@@ -126,6 +161,7 @@ final class PostProcessorRegistrationDelegate {
 			currentRegistryProcessors.clear();
 
 			// Finally, invoke all other BeanDefinitionRegistryPostProcessors until no further ones appear.
+			// 最后再执行既没有实现PriorityOrdered接口又没有实现Order接口的Processor中的方法
 			boolean reiterate = true;
 			while (reiterate) {
 				reiterate = false;
@@ -144,6 +180,7 @@ final class PostProcessorRegistrationDelegate {
 			}
 
 			// Now, invoke the postProcessBeanFactory callback of all processors handled so far.
+			// 调用对bean工厂做增强处理的方法
 			invokeBeanFactoryPostProcessors(registryProcessors, beanFactory);
 			invokeBeanFactoryPostProcessors(regularPostProcessors, beanFactory);
 		}
@@ -153,6 +190,7 @@ final class PostProcessorRegistrationDelegate {
 			invokeBeanFactoryPostProcessors(beanFactoryPostProcessors, beanFactory);
 		}
 
+		// 以下操作只对bean工程增强的Processor进行调用
 		// Do not initialize FactoryBeans here: We need to leave all regular beans
 		// uninitialized to let the bean factory post-processors apply to them!
 		String[] postProcessorNames =
