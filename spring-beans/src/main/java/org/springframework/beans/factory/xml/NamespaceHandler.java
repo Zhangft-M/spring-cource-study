@@ -49,6 +49,10 @@ import org.springframework.lang.Nullable;
 public interface NamespaceHandler {
 
 	/**
+	 * 命名空间处理器初始化方法,主要的作用就是根据命名空间会注册一系列的对配置文件的解析器,
+	 * 下面的这个方法就会根据命名空间注册解析器再来寻找在该命名空间下解析配置的解析器
+	 * 这就是为啥需要命名空间了,每个命名空间对对应着一系列的配置和一系列的解析器
+	 * @see NamespaceHandlerSupport#findParserForElement(org.w3c.dom.Element, org.springframework.beans.factory.xml.ParserContext)
 	 * Invoked by the {@link DefaultBeanDefinitionDocumentReader} after
 	 * construction but before any custom elements are parsed.
 	 * @see NamespaceHandlerSupport#registerBeanDefinitionParser(String, BeanDefinitionParser)

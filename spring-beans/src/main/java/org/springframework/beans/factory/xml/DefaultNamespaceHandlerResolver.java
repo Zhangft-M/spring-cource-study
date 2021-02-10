@@ -115,6 +115,8 @@ public class DefaultNamespaceHandlerResolver implements NamespaceHandlerResolver
 	@Override
 	@Nullable
 	public NamespaceHandler resolve(String namespaceUri) {
+		// 对于不同的命名空间获取不同的处理器
+		// 获取的可能是实例也可能是全限定类名
 		Map<String, Object> handlerMappings = getHandlerMappings();
 		Object handlerOrClassName = handlerMappings.get(namespaceUri);
 		if (handlerOrClassName == null) {
@@ -126,6 +128,7 @@ public class DefaultNamespaceHandlerResolver implements NamespaceHandlerResolver
 		else {
 			String className = (String) handlerOrClassName;
 			try {
+				// 实例化命名空间处理器
 				Class<?> handlerClass = ClassUtils.forName(className, this.classLoader);
 				if (!NamespaceHandler.class.isAssignableFrom(handlerClass)) {
 					throw new FatalBeanException("Class [" + className + "] for namespace [" + namespaceUri +
@@ -133,6 +136,7 @@ public class DefaultNamespaceHandlerResolver implements NamespaceHandlerResolver
 				}
 				NamespaceHandler namespaceHandler = (NamespaceHandler) BeanUtils.instantiateClass(handlerClass);
 				namespaceHandler.init();
+				// 更新缓存
 				handlerMappings.put(namespaceUri, namespaceHandler);
 				return namespaceHandler;
 			}
@@ -148,6 +152,7 @@ public class DefaultNamespaceHandlerResolver implements NamespaceHandlerResolver
 	}
 
 	/**
+	 * 获取处理不同命名空间的处理器
 	 * Load the specified NamespaceHandler mappings lazily.
 	 */
 	private Map<String, Object> getHandlerMappings() {
@@ -160,6 +165,16 @@ public class DefaultNamespaceHandlerResolver implements NamespaceHandlerResolver
 						logger.trace("Loading NamespaceHandler mappings from [" + this.handlerMappingsLocation + "]");
 					}
 					try {
+						/**
+						 * 此处会加载类目录下的/META-INF/spring.handlers中的资源文件
+						 * 可以自定义,默认是加载spring目录下面的五个命名空间处理器的全限定类名
+						 * key为命名空间,value为全限定类名
+						 * http\://www.springframework.org/schema/context=org.springframework.context.config.ContextNamespaceHandler
+						 * http\://www.springframework.org/schema/jee=org.springframework.ejb.config.JeeNamespaceHandler
+						 * http\://www.springframework.org/schema/lang=org.springframework.scripting.config.LangNamespaceHandler
+						 * http\://www.springframework.org/schema/task=org.springframework.scheduling.config.TaskNamespaceHandler
+						 * http\://www.springframework.org/schema/cache=org.springframework.cache.config.CacheNamespaceHandler
+						 */
 						Properties mappings =
 								PropertiesLoaderUtils.loadAllProperties(this.handlerMappingsLocation, this.classLoader);
 						if (logger.isTraceEnabled()) {

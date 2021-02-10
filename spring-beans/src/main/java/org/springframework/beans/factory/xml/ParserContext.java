@@ -96,6 +96,7 @@ public final class ParserContext {
 
 	@Nullable
 	public CompositeComponentDefinition getContainingComponent() {
+		// 取出队列的值,不进行删除
 		return this.containingComponents.peek();
 	}
 
@@ -104,6 +105,7 @@ public final class ParserContext {
 	}
 
 	public CompositeComponentDefinition popContainingComponent() {
+		// 取出组件,队列为空了
 		return this.containingComponents.pop();
 	}
 

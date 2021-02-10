@@ -70,6 +70,7 @@ public abstract class NamespaceHandlerSupport implements NamespaceHandler {
 	@Override
 	@Nullable
 	public BeanDefinition parse(Element element, ParserContext parserContext) {
+		// 根据配置的节点来获取对应的解析器
 		BeanDefinitionParser parser = findParserForElement(element, parserContext);
 		return (parser != null ? parser.parse(element, parserContext) : null);
 	}
@@ -81,6 +82,10 @@ public abstract class NamespaceHandlerSupport implements NamespaceHandler {
 	@Nullable
 	private BeanDefinitionParser findParserForElement(Element element, ParserContext parserContext) {
 		String localName = parserContext.getDelegate().getLocalName(element);
+		/**
+		 * 解析器在找对对应命名空间的处理器时执行的init{@link org.springframework.beans.factory.xml.NamespaceHandler#init()}方法进行注册,执行
+		 * @see NamespaceHandlerSupport#registerBeanDefinitionParser(java.lang.String, org.springframework.beans.factory.xml.BeanDefinitionParser)
+		 */
 		BeanDefinitionParser parser = this.parsers.get(localName);
 		if (parser == null) {
 			parserContext.getReaderContext().fatal(
@@ -130,6 +135,8 @@ public abstract class NamespaceHandlerSupport implements NamespaceHandler {
 
 
 	/**
+	 * sogo spring牛逼啊
+	 * 之前通过命名空间找到的处理器在执行init方法的时候就会注册一系列需要的解析器
 	 * Subclasses can call this to register the supplied {@link BeanDefinitionParser} to
 	 * handle the specified element. The element name is the local (non-namespace qualified)
 	 * name.

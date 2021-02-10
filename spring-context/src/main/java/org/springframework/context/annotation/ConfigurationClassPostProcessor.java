@@ -69,6 +69,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 
 /**
+ * 处理注解的beanDefinition增强器
  * {@link BeanFactoryPostProcessor} used for bootstrapping processing of
  * {@link Configuration @Configuration} classes.
  *
@@ -275,6 +276,7 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 	}
 
 	/**
+	 * 这里处理配置类
 	 * Build and validate a configuration model based on the registry of
 	 * {@link Configuration} classes.
 	 */

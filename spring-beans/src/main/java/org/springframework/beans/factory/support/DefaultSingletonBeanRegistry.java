@@ -75,12 +75,21 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 
 
 	/** Cache of singleton objects: bean name to bean instance. */
+	/**
+	 * 一级缓存
+	 */
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
 	/** Cache of singleton factories: bean name to ObjectFactory. */
+	/**
+	 * 三级缓存
+	 */
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/** Cache of early singleton objects: bean name to bean instance. */
+	/**
+	 * 二级缓存
+	 */
 	private final Map<String, Object> earlySingletonObjects = new ConcurrentHashMap<>(16);
 
 	/** Set of registered singletons, containing the bean names in registration order. */
@@ -154,9 +163,13 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(singletonFactory, "Singleton factory must not be null");
 		synchronized (this.singletonObjects) {
+			// 一级缓存没有该bean
 			if (!this.singletonObjects.containsKey(beanName)) {
+				// 加入三级缓存
 				this.singletonFactories.put(beanName, singletonFactory);
+				// 移除二级缓存
 				this.earlySingletonObjects.remove(beanName);
+				// 将bean的名称加入已注册的bean的名单中
 				this.registeredSingletons.add(beanName);
 			}
 		}
@@ -195,8 +208,15 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 							// 从三级缓存中获取
 							ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
 							if (singletonFactory != null) {
+								// 在三级缓存中调用ObjectFactory中的方法获取bean对象
+								/**
+								 * 执行的是
+								 * @see AbstractAutowireCapableBeanFactory#getEarlyBeanReference(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition, java.lang.Object)
+								 */
 								singletonObject = singletonFactory.getObject();
+								// 放入二级缓存中
 								this.earlySingletonObjects.put(beanName, singletonObject);
+								// 移除掉三级缓存中的数据
 								this.singletonFactories.remove(beanName);
 							}
 						}
@@ -228,6 +248,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 				if (logger.isDebugEnabled()) {
 					logger.debug("Creating shared instance of singleton bean '" + beanName + "'");
 				}
+				// 标志着该实例正在创建中
 				beforeSingletonCreation(beanName);
 				boolean newSingleton = false;
 				boolean recordSuppressedExceptions = (this.suppressedExceptions == null);
@@ -235,7 +256,13 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					this.suppressedExceptions = new LinkedHashSet<>();
 				}
 				try {
+					// 开始创建实例,做正事的地方,lambda表达式的使用
+					/**
+					 *
+					 * @see AbstractAutowireCapableBeanFactory#createBean(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition, java.lang.Object[])
+					 */
 					singletonObject = singletonFactory.getObject();
+					// 一个flag标志着这个实例是一个新的实例,后续会放入一级缓存中
 					newSingleton = true;
 				}
 				catch (IllegalStateException ex) {
@@ -258,9 +285,11 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					if (recordSuppressedExceptions) {
 						this.suppressedExceptions = null;
 					}
+					// 将标记实例不在创建中,表示着实例已经创建完毕了
 					afterSingletonCreation(beanName);
 				}
 				if (newSingleton) {
+					// 实例创建完毕加入到一级缓存中
 					addSingleton(beanName, singletonObject);
 				}
 			}

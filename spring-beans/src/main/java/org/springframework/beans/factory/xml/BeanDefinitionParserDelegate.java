@@ -307,10 +307,12 @@ public class BeanDefinitionParserDelegate {
 	public void initDefaults(Element root, @Nullable BeanDefinitionParserDelegate parent) {
 		// 填充bean的默认值,如果用户没有指定非必须的默认值，此时在这里就会填充
 		populateDefaults(this.defaults, (parent != null ? parent.defaults : null), root);
+		// 猜测: 貌似是注册回调事件
 		this.readerContext.fireDefaultsRegistered(this.defaults);
 	}
 
 	/**
+	 * 填充基本属性
 	 * Populate the given DocumentDefaultsDefinition instance with the default lazy-init,
 	 * autowire, dependency check settings, init-method, destroy-method and merge settings.
 	 * Support nested 'beans' element use cases by falling back to {@code parentDefaults}
@@ -1398,6 +1400,7 @@ public class BeanDefinitionParserDelegate {
 			error("Unable to locate Spring NamespaceHandler for XML schema namespace [" + namespaceUri + "]", ele);
 			return null;
 		}
+		// 调用之前获取的命名空间来解析节点
 		return handler.parse(ele, new ParserContext(this.readerContext, this, containingBd));
 	}
 
