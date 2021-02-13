@@ -273,22 +273,33 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 		Assert.notEmpty(basePackages, "At least one base package must be specified");
 		Set<BeanDefinitionHolder> beanDefinitions = new LinkedHashSet<>();
 		for (String basePackage : basePackages) {
+			// 执行过滤操作,找出符合过滤器的类
 			Set<BeanDefinition> candidates = findCandidateComponents(basePackage);
+			// 处理符合条件的beanDefinition
+			// 此时的beanDefinition为 org.springframework.context.annotation.ScannedGenericBeanDefinition
 			for (BeanDefinition candidate : candidates) {
+				// 获取bean的作用域信息
 				ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);
 				candidate.setScope(scopeMetadata.getScopeName());
+				// 给bean生成一个名称
 				String beanName = this.beanNameGenerator.generateBeanName(candidate, this.registry);
 				if (candidate instanceof AbstractBeanDefinition) {
+					// 填充一些默认的信息,就是之前初始化的org.springframework.beans.factory.support.BeanDefinitionDefaults对象中的内容
+					// 设置一下注入的策略,也是之前已经装配在扫描器中的
 					postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
 				}
 				if (candidate instanceof AnnotatedBeanDefinition) {
+					// 处理注解上面的信息,主要对用户自定义的一些信息进行处理设置
 					AnnotationConfigUtils.processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);
 				}
+				// 查看是否已经存在这个beanDefinition,不存在则注册到容器中去
 				if (checkCandidate(beanName, candidate)) {
+					// 实例化一个beanDefinition持有对象,里面包含一个beanDefinition
 					BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
 					definitionHolder =
 							AnnotationConfigUtils.applyScopedProxyMode(scopeMetadata, definitionHolder, this.registry);
 					beanDefinitions.add(definitionHolder);
+					// 将扫描的beanDefinition注册到容器中去
 					registerBeanDefinition(definitionHolder, this.registry);
 				}
 			}

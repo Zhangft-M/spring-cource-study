@@ -415,8 +415,10 @@ public class ClassPathScanningCandidateComponentProvider implements EnvironmentC
 	private Set<BeanDefinition> scanCandidateComponents(String basePackage) {
 		Set<BeanDefinition> candidates = new LinkedHashSet<>();
 		try {
+			// 生成一个新的路径名称,目的是扫描所有的.java文件
 			String packageSearchPath = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX +
 					resolveBasePackage(basePackage) + '/' + this.resourcePattern;
+			// 获取所有的资源,一个.java文件就是一个资源
 			Resource[] resources = getResourcePatternResolver().getResources(packageSearchPath);
 			boolean traceEnabled = logger.isTraceEnabled();
 			boolean debugEnabled = logger.isDebugEnabled();
@@ -426,8 +428,13 @@ public class ClassPathScanningCandidateComponentProvider implements EnvironmentC
 				}
 				if (resource.isReadable()) {
 					try {
+						// 获取原信息,主要就是获取注解的信息
 						MetadataReader metadataReader = getMetadataReaderFactory().getMetadataReader(resource);
+						// 执行过滤器过滤操作,看是否符合过滤求
+						// 要求是不合符所有的excludeFilter,至少要符合一个includeFilter
+						// 默认的过滤器就是查看是否存在 {@code Component}注解
 						if (isCandidateComponent(metadataReader)) {
+							// 如果符合条件就会生成一个ScannedGenericBeanDefinition对象再放入集合中
 							ScannedGenericBeanDefinition sbd = new ScannedGenericBeanDefinition(metadataReader);
 							sbd.setSource(resource);
 							if (isCandidateComponent(sbd)) {

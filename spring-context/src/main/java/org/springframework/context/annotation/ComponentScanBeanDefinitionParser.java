@@ -86,22 +86,48 @@ public class ComponentScanBeanDefinitionParser implements BeanDefinitionParser {
 				ConfigurableApplicationContext.CONFIG_LOCATION_DELIMITERS);
 
 		// Actually scan for bean definitions and register them.
+		/**
+		 * @see ClassPathBeanDefinitionScanner
+		 * 这个类就是扫描注解的核心类,下面就是对这个扫描器进行一个配置
+		 */
 		ClassPathBeanDefinitionScanner scanner = configureScanner(parserContext, element);
+		/**
+		 * 扫描包下面的类的核心方法
+		 * 会根据所配置的包路径在后面加上一个 /*.java,来扫描所有的.java文件
+		 * 然后就会执行过滤器策略,看哪些符合策略,符合就加入到一个集合中去,后续再将其实例化为beanDefinition
+		 */
 		Set<BeanDefinitionHolder> beanDefinitions = scanner.doScan(basePackages);
+		/**
+		 * 此时容器中已经注册完了所有扫描的bean
+		 */
 		registerComponents(parserContext.getReaderContext(), beanDefinitions, element);
 
 		return null;
 	}
 
+	/**
+	 * 对组件扫描器进行配置
+	 * @param parserContext
+	 * @param element
+	 * @return
+	 */
 	protected ClassPathBeanDefinitionScanner configureScanner(ParserContext parserContext, Element element) {
+		// 是否使用默认的过滤器
+		// 在进行<<context:component-scan/>的配置的时候我们可以手动来配置过滤器来指定哪些注解的类会被实例化一个beanDefinition
+		// 默认的化就是扫描被@Component注解的类
 		boolean useDefaultFilters = true;
 		if (element.hasAttribute(USE_DEFAULT_FILTERS_ATTRIBUTE)) {
+			// 这里是判断是否有用户自定义的配置的过滤器
 			useDefaultFilters = Boolean.parseBoolean(element.getAttribute(USE_DEFAULT_FILTERS_ATTRIBUTE));
 		}
 
 		// Delegate bean definition registration to scanner class.
+		// 实例化一个扫描器
 		ClassPathBeanDefinitionScanner scanner = createScanner(parserContext.getReaderContext(), useDefaultFilters);
+		// 给扫描器设置一个默认的beanDefinition的配置
+		// 在接下来实例化一个beanDefinition的时候会使用这些默认的配置
 		scanner.setBeanDefinitionDefaults(parserContext.getDelegate().getBeanDefinitionDefaults());
+		// 设置一个注入的策略,就是默认的bean的名称匹配注入
 		scanner.setAutowireCandidatePatterns(parserContext.getDelegate().getAutowireCandidatePatterns());
 
 		if (element.hasAttribute(RESOURCE_PATTERN_ATTRIBUTE)) {
@@ -109,6 +135,7 @@ public class ComponentScanBeanDefinitionParser implements BeanDefinitionParser {
 		}
 
 		try {
+			// 解析是否自定义了bean的名称生成器,如果有则装配到扫描器上替代默认的名称生成器
 			parseBeanNameGenerator(element, scanner);
 		}
 		catch (Exception ex) {
@@ -116,12 +143,13 @@ public class ComponentScanBeanDefinitionParser implements BeanDefinitionParser {
 		}
 
 		try {
+			// 对作用域的解析
 			parseScope(element, scanner);
 		}
 		catch (Exception ex) {
 			parserContext.getReaderContext().error(ex.getMessage(), parserContext.extractSource(element), ex.getCause());
 		}
-
+		// 解析是否有配置其他的过滤器,包含includeFilter和excludeFilter,如果有则装配到扫描器上
 		parseTypeFilters(element, scanner, parserContext);
 
 		return scanner;
@@ -136,20 +164,27 @@ public class ComponentScanBeanDefinitionParser implements BeanDefinitionParser {
 			XmlReaderContext readerContext, Set<BeanDefinitionHolder> beanDefinitions, Element element) {
 
 		Object source = readerContext.extractSource(element);
+		// 实例化一个复杂的组件,就是以<context:component-scan/>的组件
+		// 接下来会将所有的因为这个配置而产生的所有的beanDefinition封装成一个BeanComponentDefinition然后加入到这个复杂组件中去
+		// 我猜测这就是一种分组思想,将所有的相关的组件进行分组
 		CompositeComponentDefinition compositeDef = new CompositeComponentDefinition(element.getTagName(), source);
 
+		// 将之前符合过滤器的策略的beanDefinition包装成一个BeanComponentDefinition然后加入到这个复杂组件中去
 		for (BeanDefinitionHolder beanDefHolder : beanDefinitions) {
 			compositeDef.addNestedComponent(new BeanComponentDefinition(beanDefHolder));
 		}
 
 		// Register annotation config processors, if necessary.
+		// 配置了<context:component-scan/>其中的默认属性就含有annotation-config,将会注册那五个必须的beanPostProcessor
 		boolean annotationConfig = true;
 		if (element.hasAttribute(ANNOTATION_CONFIG_ATTRIBUTE)) {
 			annotationConfig = Boolean.parseBoolean(element.getAttribute(ANNOTATION_CONFIG_ATTRIBUTE));
 		}
 		if (annotationConfig) {
+			// 获取与annotation-config相关的五大组件
 			Set<BeanDefinitionHolder> processorDefinitions =
 					AnnotationConfigUtils.registerAnnotationConfigProcessors(readerContext.getRegistry(), source);
+			// 将这五大组件也放入到这个复杂组件里面去
 			for (BeanDefinitionHolder processorDefinition : processorDefinitions) {
 				compositeDef.addNestedComponent(new BeanComponentDefinition(processorDefinition));
 			}

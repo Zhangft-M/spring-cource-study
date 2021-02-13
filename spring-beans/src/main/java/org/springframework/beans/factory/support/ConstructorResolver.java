@@ -401,17 +401,22 @@ class ConstructorResolver {
 		Class<?> factoryClass;
 		boolean isStatic;
 
+		// 此时的工厂bean的name就是在实例化ConfigurationBeanDefinition的时候设置的被@Configuration注解的类的名称
 		String factoryBeanName = mbd.getFactoryBeanName();
 		if (factoryBeanName != null) {
 			if (factoryBeanName.equals(beanName)) {
 				throw new BeanDefinitionStoreException(mbd.getResourceDescription(), beanName,
 						"factory-bean reference points back to the same bean definition");
 			}
+			// 获取配置类的实例,此时如果以及实例化了,就直接获取对象
+			// 被@Configuration注解标注的类创建的实例都是代理对象,这是为了防止在调用里面的方法的时候创建多个bean
 			factoryBean = this.beanFactory.getBean(factoryBeanName);
 			if (mbd.isSingleton() && this.beanFactory.containsSingleton(beanName)) {
 				throw new ImplicitlyAppearedSingletonException();
 			}
+			// 在bean工厂中设置依赖关系,此时创建的bean应该是依赖于他的配置类的
 			this.beanFactory.registerDependentBean(factoryBeanName, beanName);
+			// 获取配置类的Class对象,此时获取的是被加强的代理的Class对象
 			factoryClass = factoryBean.getClass();
 			isStatic = false;
 		}
@@ -453,14 +458,17 @@ class ConstructorResolver {
 		if (factoryMethodToUse == null || argsToUse == null) {
 			// Need to determine the factory method...
 			// Try all methods with this name to see if they match the given arguments.
+			// 这一步是获取配置类的原本的Class对象信息
 			factoryClass = ClassUtils.getUserClass(factoryClass);
 
 			List<Method> candidates = null;
 			if (mbd.isFactoryMethodUnique) {
 				if (factoryMethodToUse == null) {
+					// 获取被@Bean注解的方法对象
 					factoryMethodToUse = mbd.getResolvedFactoryMethod();
 				}
 				if (factoryMethodToUse != null) {
+					// 复制一份给candidates
 					candidates = Collections.singletonList(factoryMethodToUse);
 				}
 			}
@@ -474,6 +482,7 @@ class ConstructorResolver {
 				}
 			}
 
+			//
 			if (candidates.size() == 1 && explicitArgs == null && !mbd.hasConstructorArgumentValues()) {
 				Method uniqueCandidate = candidates.get(0);
 				if (uniqueCandidate.getParameterCount() == 0) {
@@ -483,6 +492,7 @@ class ConstructorResolver {
 						mbd.constructorArgumentsResolved = true;
 						mbd.resolvedConstructorArguments = EMPTY_ARGS;
 					}
+					// 开始创建对象,使用反射调用方法创建
 					bw.setBeanInstance(instantiate(beanName, mbd, factoryBean, uniqueCandidate, EMPTY_ARGS));
 					return bw;
 				}

@@ -38,6 +38,7 @@ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
@@ -555,6 +556,25 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 	/**
 	 * 初始化容器的核心方法
+	 * 实例化过程:
+	 * A: 容器初始化过程
+	 * 		1. 首先准备容器初始化,对一些必要环境进行初始化 {@link AbstractApplicationContext#prepareRefresh()}
+	 * 		2. 对beanDefinition进行初始化,主要就是加载配置文件 {@link AbstractApplicationContext#obtainFreshBeanFactory()}
+	 * 		3. 再对容器做一些准备工作,主要就是手动注册一些beanPostProcessor,对一些接口进行忽略,手动注册一些bean {@link AbstractApplicationContext#prepareBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * B: 容器增强处理，可以在这儿对容器进行自定义的增强处理 {@link AbstractApplicationContext#postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * C: 实例化实现了 {@link BeanDefinitionRegistryPostProcessor} 接口的bean,并调用bean中的方法 {@link AbstractApplicationContext#invokeBeanFactoryPostProcessors(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * 		1. 先调用增强beanDefinition的方法 {@link BeanDefinitionRegistryPostProcessor#postProcessBeanDefinitionRegistry(org.springframework.beans.factory.support.BeanDefinitionRegistry)}
+	 * 		2. 再调用增强beanFactory的方法{@link BeanFactoryPostProcessor#postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * D: 实例化实现了{@link BeanPostProcessor}接口的bean并注册到容器中去
+	 * E: 对消息源进行初始化,主要针对国际化处理 {@link AbstractApplicationContext#initMessageSource()}
+	 * F: 对事件多播器进行实例化,并且注册到容器中去 {@link AbstractApplicationContext#initApplicationEventMulticaster()}
+	 * G: 对监听者进行实例化,并且注册到容器{@link AbstractApplicationContext#registerListeners()}
+	 * 		1.先实例化所有的监听者
+	 * 		2.添加到容器
+	 * 		3.发布早起的一些事件
+	 * H: 最后实例化一般的bean {@link AbstractApplicationContext#finishBeanFactoryInitialization(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)}
+	 * 总结:
+	 * 上述的实例化一个bean,是要走完整的实例化过程的,包括开辟一个空间,属性注入,调用增强方法,调用实现了aware接口的方法,自定义初始化方法
 	 * @throws BeansException
 	 * @throws IllegalStateException
 	 */
@@ -568,6 +588,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			prepareRefresh();
 
 			/**
+			 * 这个方法主要的作用就是加载一些配置文件将其全部加载为beanDefinition,在xml配置中,只要是一个标签就是一个配置
+			 * 一个配置对应一个或者多个beanDefinition
 			 * 此处会将bean.xml文件解析成beanDefinition对象
 			 * 这个方法最核心的处理逻辑就是加载配置文件，首先会将配置文件解析成Document文档对象
 			 * 获取文档对象后就进行解析操作，解析每一个Node节点，然后在
@@ -580,25 +602,46 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
+			/**
+			 * 对bean工厂做一些准备工作,主要就是手动注册一些beanPostProcessor,初始化一些需要忽略的aware接口
+			 * 再手动注册一些bean的实例
+			 */
 			prepareBeanFactory(beanFactory);
 
 			try {
 				// Allows post-processing of the bean factory in context subclasses.
+				/**
+				 * 可以在这个方法对bean工厂进行改变
+				 * 我看了一下,默认是不做任何处理的,但是在web开发中会对这个方法做处理
+				 * 这个应该是容器扩展的方法之一
+				 */
 				postProcessBeanFactory(beanFactory);
 
 				// 开始对beanPostProcessor进行处理,这只是一个开始处理的标志
 				StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");
 				// 调用实现了BeanFactoryPostProcessor接口的类的方法
-				// 主要有
 				/**
+				 * 顾名思义,这个方法主要是对bean工厂进行增强处理,此时自定义的bean还没有实例化,只有一些手动注册到工厂的bean
+				 * 那么这个方法就可以改变bean工厂和beanDefinition,事实上也是主要执行下面两个方法:
 				 * 先调用 {@link BeanDefinitionRegistryPostProcessor#postProcessBeanDefinitionRegistry(org.springframework.beans.factory.support.BeanDefinitionRegistry)} 对beanDefinition进行增强
 				 * 后调用 {@link BeanFactoryPostProcessor#postProcessBeanFactory(org.springframework.beans.factory.config.ConfigurableListableBeanFactory)} 对beanFactory进行增强
+				 * 当然,调用的顺序也是有区别的,都是按照实现的接口来决定实例化和调用的顺序
+				 * 顺序 PriorityOrdered > Ordered > 一般的bean
 				 */
 				// Invoke factory processors registered as beans in the context.
 				invokeBeanFactoryPostProcessors(beanFactory);
 
 				// Register bean processors that intercept bean creation.
-				// 注册beanPostProcessor，对bean做增强处理
+				// 注册beanPostProcessor，之后对bean做增强处理
+				// 这个方法会先实例化所有的beanPostProcessor
+				/**
+				 * 这个方法会实例化所有的beanProcessor,实例化的过程和一般的bean实例化是一个过程
+				 * 其实所有的beanProcessor就是一般的bean,再实例化的时候会根据bean实现的接口的优先等级来对其进行实例化
+				 * 等级 顺序 PriorityOrdered > Ordered > 一般的bean
+				 * 需要注意的是优先等级低的beanProcessor在实例化的时候也会执行比他优先等级高的beanProcessor的方法,
+				 * 一般的实现都会对类型进行判断,不会做任何处理的
+				 *
+				 */
 				registerBeanPostProcessors(beanFactory);
 				beanPostProcess.end();
 
@@ -623,6 +666,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				 * @see AbstractAutowireCapableBeanFactory#doCreateBean(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition, java.lang.Object[])
 				 * 对于代理对象则在BeanPostProcessors接口中的前置方法实例化
 				 * @see AbstractAutowireCapableBeanFactory#resolveBeforeInstantiation(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition)
+				 * 使用@Bean注解创建对象在{@link AbstractAutowireCapableBeanFactory#instantiateUsingFactoryMethod(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition, java.lang.Object[])}
+				 * 使用构造函数创建对象在{@link AbstractAutowireCapableBeanFactory#instantiateBean(java.lang.String, org.springframework.beans.factory.support.RootBeanDefinition)}
 				 */
 				finishBeanFactoryInitialization(beanFactory);
 
@@ -736,7 +781,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 		// Configure the bean factory with context callbacks.
 		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
-		// 在执行aware方法的时候会忽略以下接口
+
 		beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
 		beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
 		beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);

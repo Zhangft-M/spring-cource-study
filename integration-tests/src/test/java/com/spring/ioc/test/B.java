@@ -1,4 +1,4 @@
-package com.spirng.ioc.test;
+package com.spring.ioc.test;
 
 /**
  * @program: spring

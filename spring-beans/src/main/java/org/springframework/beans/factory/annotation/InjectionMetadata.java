@@ -225,6 +225,8 @@ public class InjectionMetadata {
 			if (this.isField) {
 				Field field = (Field) this.member;
 				ReflectionUtils.makeAccessible(field);
+				// 开始属性注入调用org.springframework.beans.factory.annotation.InjectionMetadata.InjectedElement.getResourceToInject
+				// 方法查找是否含有该bean
 				field.set(target, getResourceToInject(target, requestingBeanName));
 			}
 			else {
