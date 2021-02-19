@@ -163,6 +163,8 @@ public class ClassPathBeanDefinitionScanner extends ClassPathScanningCandidateCo
 		this.registry = registry;
 
 		if (useDefaultFilters) {
+			// 这里就是注册过滤器,看是否符合过滤器规则
+			// 具体的作用是在调用解析器解析每一个.java类资源的是否看是否符合过滤器的规则
 			registerDefaultFilters();
 		}
 		setEnvironment(environment);

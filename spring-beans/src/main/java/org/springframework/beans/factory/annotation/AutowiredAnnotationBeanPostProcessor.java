@@ -484,6 +484,7 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 			// 遍历当前类所有的字段,这个工具类的方法值得借鉴使用
 			ReflectionUtils.doWithLocalFields(targetClass, field -> {
 
+				// 匹配是否是需要被自动注入
 				MergedAnnotation<?> ann = findAutowiredAnnotation(field);
 				if (ann != null) {
 					// 查看是否为静态字段,这就是为啥不支持静态字段的注解注入

@@ -67,10 +67,7 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.core.io.support.DefaultPropertySourceFactory;
-import org.springframework.core.io.support.EncodedResource;
-import org.springframework.core.io.support.PropertySourceFactory;
-import org.springframework.core.io.support.ResourcePropertySource;
+import org.springframework.core.io.support.*;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 import org.springframework.core.type.StandardAnnotationMetadata;
@@ -167,6 +164,23 @@ class ConfigurationClassParser {
 	}
 
 
+	/**
+	 * 这个方法非常重要,spring-boot的自动装配就是根据这个方法实现的
+	 * 具体的实现方法是:首先解析根据之前加载注册的启动类的beanDefinition,通过解析该类就可以解析{@code @Import}注解
+	 * 解析完成之后会得到一个{@code org.springframework.boot.autoconfigure.AutoConfigurationImportSelector}
+	 * 的selector,得到这个selector之后会把它放在{@code org.springframework.context.annotation.ConfigurationClassParser#deferredImportSelectorHandler}
+	 * 中,当解析完成所有的BeanDefinition之后就会执行{@link DeferredImportSelectorHandler#process()}方法
+	 * 这个方法就是关键方法了,具体的执行链如下
+	 * @see DeferredImportSelectorHandler#process() 开始执行选择器
+	 * @see DeferredImportSelectorGroupingHandler#processGroupImports()
+	 * @see DeferredImportSelectorGrouping#getImports() 获取并执行
+	 * 接下的两个为spring-boot中的类中的方法,也是核心方法
+	 * @see org.springframework.boot.autoconfigure.AutoConfigurationImportSelector.AutoConfigurationGroup#process (spring-boot中的类)
+	 * @see org.springframework.boot.autoconfigure.AutoConfigurationImportSelector#getAutoConfigurationEntry
+	 * @see org.springframework.boot.autoconfigure.AutoConfigurationImportSelector#getCandidateConfigurations
+	 * @see SpringFactoriesLoader#loadFactoryNames(java.lang.Class, java.lang.ClassLoader) 加载 {@linkorg.springframework.boot.autoconfigure.EnableAutoConfiguration}的资源
+	 * @param configCandidates
+	 */
 	public void parse(Set<BeanDefinitionHolder> configCandidates) {
 		for (BeanDefinitionHolder holder : configCandidates) {
 			BeanDefinition bd = holder.getBeanDefinition();
@@ -286,12 +300,21 @@ class ConfigurationClassParser {
 		}
 
 		// Process any @ComponentScan annotations
+		// 这里就是开始扫描组件了,spring-boot在这儿就很关键了
+		// 其实可以看见,不管使用哪种方式,所有的包扫描器都是同一种实现,只不过实例化这个扫描器的位置不同而已
 		Set<AnnotationAttributes> componentScans = AnnotationConfigUtils.attributesForRepeatable(
 				sourceClass.getMetadata(), ComponentScans.class, ComponentScan.class);
 		if (!componentScans.isEmpty() &&
 				!this.conditionEvaluator.shouldSkip(sourceClass.getMetadata(), ConfigurationPhase.REGISTER_BEAN)) {
 			for (AnnotationAttributes componentScan : componentScans) {
 				// The config class is annotated with @ComponentScan -> perform the scan immediately
+				// 下面这个方法就开始扫描了,先对扫描器做一些初始化的工作,然后执行
+				/**
+				 * @see ClassPathBeanDefinitionScanner#doScan(java.lang.String...)
+				 * 需要注意{@code basePackages.add(ClassUtils.getPackageName(declaringClass))}
+				 * 这一段就是生成一个包扫描路径了,当没有指定路径时就会生成一个路径,默认就是当前启动类的路径
+				 * declaringClass就是启动类
+				 */
 				Set<BeanDefinitionHolder> scannedBeanDefinitions =
 						this.componentScanParser.parse(componentScan, sourceClass.getMetadata().getClassName());
 				// Check the set of scanned definitions for any further config classes and parse recursively if needed
@@ -308,6 +331,8 @@ class ConfigurationClassParser {
 		}
 
 		// Process any @Import annotations
+		// 这儿在spring-boot中就是自动化装配的重点了,这个方法会处理{@code @Import}注解,
+		// 将注解中的class字节码对象实例化一个selector，然后放入一个集合中
 		processImports(configClass, sourceClass, getImports(sourceClass), filter, true);
 
 		// Process any @ImportResource annotations
@@ -562,12 +587,18 @@ class ConfigurationClassParser {
 			this.problemReporter.error(new CircularImportProblem(configClass, this.importStack));
 		}
 		else {
+			// 这里的处理过程就很复杂了
 			this.importStack.push(configClass);
 			try {
 				for (SourceClass candidate : importCandidates) {
+					/**
+					 * 判断当前的配置类是否为ImportSelector的实例
+					 * 这就是说,我们也可以实现一个{@link ImportSelector}来实现自动装配一些bean
+					 */
 					if (candidate.isAssignable(ImportSelector.class)) {
 						// Candidate class is an ImportSelector -> delegate to it to determine imports
 						Class<?> candidateClass = candidate.loadClass();
+						// 实例化selector
 						ImportSelector selector = ParserStrategyUtils.instantiateClass(candidateClass, ImportSelector.class,
 								this.environment, this.resourceLoader, this.registry);
 						Predicate<String> selectorFilter = selector.getExclusionFilter();
@@ -575,6 +606,7 @@ class ConfigurationClassParser {
 							exclusionFilter = exclusionFilter.or(selectorFilter);
 						}
 						if (selector instanceof DeferredImportSelector) {
+							// 直接执行或者放入集合
 							this.deferredImportSelectorHandler.handle(configClass, (DeferredImportSelector) selector);
 						}
 						else {
@@ -586,6 +618,7 @@ class ConfigurationClassParser {
 					else if (candidate.isAssignable(ImportBeanDefinitionRegistrar.class)) {
 						// Candidate class is an ImportBeanDefinitionRegistrar ->
 						// delegate to it to register additional bean definitions
+						// 这一块好像是处理ImportBeanDefinitionRegistrar接口的子类,并没有执行selector的方法
 						Class<?> candidateClass = candidate.loadClass();
 						ImportBeanDefinitionRegistrar registrar =
 								ParserStrategyUtils.instantiateClass(candidateClass, ImportBeanDefinitionRegistrar.class,
@@ -595,6 +628,8 @@ class ConfigurationClassParser {
 					else {
 						// Candidate class not an ImportSelector or ImportBeanDefinitionRegistrar ->
 						// process it as an @Configuration class
+						// spring-boot主要就是执行这一块的逻辑了
+						//
 						this.importStack.registerImport(
 								currentSourceClass.getMetadata(), candidate.getMetadata().getClassName());
 						processConfigurationClass(candidate.asConfigClass(configClass), exclusionFilter);
@@ -759,6 +794,8 @@ class ConfigurationClassParser {
 		 */
 		public void handle(ConfigurationClass configClass, DeferredImportSelector importSelector) {
 			DeferredImportSelectorHolder holder = new DeferredImportSelectorHolder(configClass, importSelector);
+			// 这里的做法也很巧妙,如果只有一个selector,直接执行就行,但是如果有多个,就将其放入集合中后续一起执行
+			// 猜想:这里执行的selector主要就是自己实现的那个？
 			if (this.deferredImportSelectors == null) {
 				DeferredImportSelectorGroupingHandler handler = new DeferredImportSelectorGroupingHandler();
 				handler.register(holder);
@@ -806,9 +843,15 @@ class ConfigurationClassParser {
 		public void processGroupImports() {
 			for (DeferredImportSelectorGrouping grouping : this.groupings.values()) {
 				Predicate<String> exclusionFilter = grouping.getCandidateFilter();
+				// getImports()方法会返回一个Entry类型的集合,包含了所有需要自动装配的entry对象,key为
 				grouping.getImports().forEach(entry -> {
 					ConfigurationClass configurationClass = this.configurationClasses.get(entry.getMetadata());
 					try {
+						// 这里就是将每一个导入的配置类加载成一个sourceClass再次当作一个配置类进行解析
+						// 不过当成配置类解析有一个条件,那就是没有实现org.springframework.context.annotation.ImportSelector接口
+						// 和 org.springframework.context.annotation.ImportBeanDefinitionRegistrar接口
+						// 所以在spring-boot中enableAutoConfig类不管加不加注解应该都是一样的
+						// TODO: 2021/2/18 这一块感觉特别复杂
 						processImports(configurationClass, asSourceClass(configurationClass, exclusionFilter),
 								Collections.singleton(asSourceClass(entry.getImportClassName(), exclusionFilter)),
 								exclusionFilter, false);

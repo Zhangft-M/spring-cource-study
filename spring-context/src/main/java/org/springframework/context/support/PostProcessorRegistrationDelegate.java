@@ -107,6 +107,10 @@ final class PostProcessorRegistrationDelegate {
 			List<BeanDefinitionRegistryPostProcessor> registryProcessors = new ArrayList<>();
 
 			// 查找已经注册的beanFactoryProcessor,一般来说就是手动注册的
+			// 如果开启了注解扫描,这里就有一个很重要的Processor
+			/**
+			 * @see ConfigurationClassPostProcessor
+			 */
 			for (BeanFactoryPostProcessor postProcessor : beanFactoryPostProcessors) {
 				if (postProcessor instanceof BeanDefinitionRegistryPostProcessor) {
 					BeanDefinitionRegistryPostProcessor registryProcessor =

@@ -251,12 +251,15 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 			throw new IllegalStateException(
 					"postProcessBeanFactory already called on this post-processor against " + registry);
 		}
+		// 这里设置一个id就是避免下面执行org.springframework.context.annotation.ConfigurationClassPostProcessor.postProcessBeanFactory方法
+		// 还会解析一次配置类,下面那个方法主要是对配置类进行加强,生成一个代理对象
 		this.registriesPostProcessed.add(registryId);
 
 		processConfigBeanDefinitions(registry);
 	}
 
 	/**
+	 * 这个方法会解析每一个配置类,然后将配置类加强生成一个代理的配置类,生成代理配置类的目的就是避免调用方法生成多个对象
 	 * Prepare the Configuration classes for servicing bean requests at runtime
 	 * by replacing them with CGLIB-enhanced subclasses.
 	 */
@@ -271,15 +274,22 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		if (!this.registriesPostProcessed.contains(factoryId)) {
 			// BeanDefinitionRegistryPostProcessor hook apparently not supported...
 			// Simply call processConfigurationClasses lazily at this point then.
+			// 解析配置类
 			processConfigBeanDefinitions((BeanDefinitionRegistry) beanFactory);
 		}
 
+		// 生成配置类的代理类
 		enhanceConfigurationClasses(beanFactory);
 		beanFactory.addBeanPostProcessor(new ImportAwareBeanPostProcessor(beanFactory));
 	}
 
 	/**
 	 * 这里处理配置类
+	 * 在spring里,如果是使用xml配置的方式,在开启包扫描的时候,有一个解析器就会扫描所有符合条件的包,然后把有@configuration注解的类解析成
+	 * BeanDefinition
+	 * 但是如果不使用xml配置,那么在实例化上下文对象的时候就要指定一个配置类,此时处理的就是那个指定的配置类
+	 * 在spring-boot里面就比较巧妙了,在执行刷新方法之前,spring-boot会将启动类加载成一个BeanDefinition,然后在这儿就是
+	 * 解析启动类了 ,不得不说spring-boot牛逼啊
 	 * Build and validate a configuration model based on the registry of
 	 * {@link Configuration} classes.
 	 */
@@ -332,7 +342,7 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		}
 
 		// Parse each @Configuration class
-		// 解析每一个配置类
+		// 解析每一个配置类,在这里
 		ConfigurationClassParser parser = new ConfigurationClassParser(
 				this.metadataReaderFactory, this.problemReporter, this.environment,
 				this.resourceLoader, this.componentScanBeanNameGenerator, registry);
@@ -342,6 +352,7 @@ public class ConfigurationClassPostProcessor implements BeanDefinitionRegistryPo
 		do {
 			StartupStep processConfig = this.applicationStartup.start("spring.context.config-classes.parse");
 			/**
+			 *
 			 * 解析配置类
 			 * @see ConfigurationClassParser#parse(java.util.Set)
 			 * @see ConfigurationClassParser#parse(org.springframework.core.type.AnnotationMetadata, java.lang.String)

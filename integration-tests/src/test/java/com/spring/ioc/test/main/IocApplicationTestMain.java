@@ -5,6 +5,7 @@ import com.spring.ioc.test.B;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
+import org.springframework.web.context.support.XmlWebApplicationContext;
 
 /**
  * @program: spring
@@ -20,11 +21,14 @@ public class IocApplicationTestMain {
 		for (String beanDefinitionName : cxa.getBeanDefinitionNames()) {
 			System.out.println(beanDefinitionName);
 		}
+		XmlWebApplicationContext xwa = new XmlWebApplicationContext();
 		A a = cxa.getBean("a", A.class);
 		B b = cxa.getBean("b",B.class);
 		System.out.println(b);
  		System.out.println(a.getB());
 		System.out.println(a);
+
+
 	}
 
 	@Test
