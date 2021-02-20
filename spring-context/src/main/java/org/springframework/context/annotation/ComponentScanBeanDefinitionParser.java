@@ -77,6 +77,17 @@ public class ComponentScanBeanDefinitionParser implements BeanDefinitionParser {
 	private static final String FILTER_EXPRESSION_ATTRIBUTE = "expression";
 
 
+	/**
+	 * 如果开启了<context:component-scan base-package="**"/>注解扫描
+	 * 1.如果是使用配置文件那么在解析配置文件的时候就会扫描所有的含有@Component注解的bean
+	 * 2.如果使用配置文件,则在{@link ConfigurationClassPostProcessor#postProcessBeanDefinitionRegistry(org.springframework.beans.factory.support.BeanDefinitionRegistry)}
+	 * 中解析配置文件的时候会解析一个@ComponentScan注解,此时也会到这里来执行扫描逻辑,扫描所有带有@Component注解的类
+	 * 注意: 带有@Component注解的类也包括复合注解,例如@Service @Controller ...
+	 * @param element the element that is to be parsed into one or more {@link BeanDefinition BeanDefinitions}
+	 * @param parserContext the object encapsulating the current state of the parsing process;
+	 * provides access to a {@link org.springframework.beans.factory.support.BeanDefinitionRegistry}
+	 * @return
+	 */
 	@Override
 	@Nullable
 	public BeanDefinition parse(Element element, ParserContext parserContext) {

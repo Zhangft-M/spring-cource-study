@@ -33,6 +33,8 @@ import org.springframework.web.servlet.mvc.HttpRequestHandlerAdapter;
 import org.springframework.web.servlet.resource.DefaultServletHttpRequestHandler;
 
 /**
+ * 配置了<mvc:default-servlet-handler/>后会进入这个处理器来处理
+ * 这一个主要是注册一个默认的请求处理器
  * {@link BeanDefinitionParser} that parses a {@code default-servlet-handler} element to
  * register a {@link DefaultServletHttpRequestHandler}.  Will also register a
  * {@link SimpleUrlHandlerMapping} for mapping resource requests, and a
@@ -61,6 +63,7 @@ class DefaultServletHandlerBeanDefinitionParser implements BeanDefinitionParser 
 		parserContext.registerComponent(new BeanComponentDefinition(defaultServletHandlerDef, defaultServletHandlerName));
 
 		Map<String, String> urlMap = new ManagedMap<>();
+		// 默认拦截所有的请求
 		urlMap.put("/**", defaultServletHandlerName);
 
 		RootBeanDefinition handlerMappingDef = new RootBeanDefinition(SimpleUrlHandlerMapping.class);

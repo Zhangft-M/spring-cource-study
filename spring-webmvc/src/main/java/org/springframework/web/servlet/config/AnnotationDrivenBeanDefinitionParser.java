@@ -21,6 +21,7 @@ import java.util.Properties;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
+import org.springframework.web.servlet.handler.AbstractHandlerMethodMapping;
 import org.w3c.dom.Element;
 
 import org.springframework.beans.factory.FactoryBean;
@@ -86,6 +87,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ServletWebArgumentR
 import org.springframework.web.servlet.mvc.support.DefaultHandlerExceptionResolver;
 
 /**
+ * 主要就是解析spring mvc相关的配置
+ * 这里就是spring mvc的关键地方所在
  * A {@link BeanDefinitionParser} that provides the configuration for the
  * {@code <annotation-driven/>} MVC namespace element.
  *
@@ -190,21 +193,42 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 	}
 
 
+	/**
+	 * sping mvc初始化的核心方法,在这里会初始化spring mvc核心所需要的bean
+	 * @param element the element that is to be parsed into one or more {@link BeanDefinition BeanDefinitions}
+	 * @param context
+	 * @return
+	 */
 	@Override
 	@Nullable
 	public BeanDefinition parse(Element element, ParserContext context) {
 		Object source = context.extractSource(element);
 		XmlReaderContext readerContext = context.getReaderContext();
 
+		// 首先实例化一个复杂的组件,用来放入其他的组件
 		CompositeComponentDefinition compDefinition = new CompositeComponentDefinition(element.getTagName(), source);
 		context.pushContainingComponent(compDefinition);
 
+		/**
+		 * 包装为RuntimeBeanReference类型,主要是该类型主要是作为参数注入到其他的实例中,后面的都是如此
+		 */
 		RuntimeBeanReference contentNegotiationManager = getContentNegotiationManager(element, source, context);
 
+		// 这个就是请求映射和处理映射,每个url都会映射一个处理器
+		/**
+		 * 在在进行映射的时候却是在初始化bean之后进行,调用父类的afterProperties方法{@link AbstractHandlerMethodMapping#afterPropertiesSet()}
+		 * 再是调用{@link AbstractHandlerMethodMapping#processCandidateBean(java.lang.String)}
+		 *  -> {@link AbstractHandlerMethodMapping#detectHandlerMethods(java.lang.Object)}
+		 *  -> {@link AbstractHandlerMethodMapping#getMappingForMethod(java.lang.reflect.Method, java.lang.Class)}
+		 *  -> {@link RequestMappingHandlerMapping#getMappingForMethod(java.lang.reflect.Method, java.lang.Class)}
+		 *  -> {@link RequestMappingHandlerMapping#createRequestMappingInfo(java.lang.reflect.AnnotatedElement)}
+		 *  -> {@link RequestMappingHandlerMapping#createRequestMappingInfo(org.springframework.web.bind.annotation.RequestMapping, org.springframework.web.servlet.mvc.condition.RequestCondition)}
+		 */
 		RootBeanDefinition handlerMappingDef = new RootBeanDefinition(RequestMappingHandlerMapping.class);
 		handlerMappingDef.setSource(source);
 		handlerMappingDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 		handlerMappingDef.getPropertyValues().add("order", 0);
+		// 设置前面的管理器的值
 		handlerMappingDef.getPropertyValues().add("contentNegotiationManager", contentNegotiationManager);
 
 		if (element.hasAttribute("enable-matrix-variables")) {
@@ -212,7 +236,9 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 			handlerMappingDef.getPropertyValues().add("removeSemicolonContent", !enableMatrixVariables);
 		}
 
+		// 处理路径匹配相关的设置
 		configurePathMatchingProperties(handlerMappingDef, element, context);
+		// 注册到容器中
 		readerContext.getRegistry().registerBeanDefinition(HANDLER_MAPPING_BEAN_NAME, handlerMappingDef);
 
 		RuntimeBeanReference corsRef = MvcNamespaceUtils.registerCorsConfigurations(null, context, source);
@@ -222,6 +248,7 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 		RuntimeBeanReference validator = getValidator(element, source, context);
 		RuntimeBeanReference messageCodesResolver = getMessageCodesResolver(element);
 
+		// 和数据绑定有关
 		RootBeanDefinition bindingDef = new RootBeanDefinition(ConfigurableWebBindingInitializer.class);
 		bindingDef.setSource(source);
 		bindingDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
@@ -229,14 +256,20 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 		bindingDef.getPropertyValues().add("validator", validator);
 		bindingDef.getPropertyValues().add("messageCodesResolver", messageCodesResolver);
 
+		// 信息转换,提供序列化操作
 		ManagedList<?> messageConverters = getMessageConverters(element, source, context);
+		// 参数处理
 		ManagedList<?> argumentResolvers = getArgumentResolvers(element, context);
+		// 返回值处理
 		ManagedList<?> returnValueHandlers = getReturnValueHandlers(element, context);
 		String asyncTimeout = getAsyncTimeout(element);
+		// 异步处理支持
 		RuntimeBeanReference asyncExecutor = getAsyncExecutor(element);
 		ManagedList<?> callableInterceptors = getInterceptors(element, source, context, "callable-interceptors");
 		ManagedList<?> deferredResultInterceptors = getInterceptors(element, source, context, "deferred-result-interceptors");
 
+		// 初始化处理器,这个就是dispatcher根据url找到适合的处理器来处理请求
+		// 这里会
 		RootBeanDefinition handlerAdapterDef = new RootBeanDefinition(RequestMappingHandlerAdapter.class);
 		handlerAdapterDef.setSource(source);
 		handlerAdapterDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
@@ -246,6 +279,7 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 		addRequestBodyAdvice(handlerAdapterDef);
 		addResponseBodyAdvice(handlerAdapterDef);
 
+		// 这些都是对处理器进行一些配置
 		if (element.hasAttribute("ignore-default-model-on-redirect")) {
 			Boolean ignoreDefaultModel = Boolean.valueOf(element.getAttribute("ignore-default-model-on-redirect"));
 			handlerAdapterDef.getPropertyValues().add("ignoreDefaultModelOnRedirect", ignoreDefaultModel);
@@ -267,6 +301,7 @@ class AnnotationDrivenBeanDefinitionParser implements BeanDefinitionParser {
 		handlerAdapterDef.getPropertyValues().add("deferredResultInterceptors", deferredResultInterceptors);
 		readerContext.getRegistry().registerBeanDefinition(HANDLER_ADAPTER_BEAN_NAME, handlerAdapterDef);
 
+		// 对请求地址的参数进行处理
 		RootBeanDefinition uriContributorDef =
 				new RootBeanDefinition(CompositeUriComponentsContributorFactoryBean.class);
 		uriContributorDef.setSource(source);

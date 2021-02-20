@@ -96,6 +96,7 @@ public class ContextLoaderListener extends ContextLoader implements ServletConte
 
 
 	/**
+	 * 加载根容器,这里就是web.xml配置的入口,此时会进行大部分的初始化工作,后续初始化DispatchServlet的时候还会初始化一个容器
 	 * Initialize the root web application context.
 	 */
 	@Override

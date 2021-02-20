@@ -70,7 +70,9 @@ public final class MethodIntrospector {
 			final Class<?> targetClass = (specificHandlerType != null ? specificHandlerType : currentHandlerType);
 
 			ReflectionUtils.doWithMethods(currentHandlerType, method -> {
+				// 实例化Method对象
 				Method specificMethod = ClassUtils.getMostSpecificMethod(method, targetClass);
+				//
 				T result = metadataLookup.inspect(specificMethod);
 				if (result != null) {
 					Method bridgedMethod = BridgeMethodResolver.findBridgedMethod(specificMethod);

@@ -39,4 +39,9 @@ public class IocApplicationTestMain {
 		}
 	}
 
+	@Test
+	public void testWeb(){
+
+	}
+
 }

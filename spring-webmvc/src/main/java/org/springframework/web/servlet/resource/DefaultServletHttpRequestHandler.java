@@ -31,6 +31,7 @@ import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.context.ServletContextAware;
 
 /**
+ * 他的作用就是拦截所有的请求,交给DispatcherServlet处理,或者其他的DispatcherServlet处理
  * An {@link HttpRequestHandler} for serving static files using the Servlet container's "default" Servlet.
  *
  * <p>This handler is intended to be used with a "/*" mapping when the
