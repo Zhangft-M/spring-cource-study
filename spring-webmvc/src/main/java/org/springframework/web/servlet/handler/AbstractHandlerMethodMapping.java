@@ -389,9 +389,11 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 	 */
 	@Override
 	protected HandlerMethod getHandlerInternal(HttpServletRequest request) throws Exception {
+		// 获取访问路径,上下文url+请求的url
 		String lookupPath = initLookupPath(request);
 		this.mappingRegistry.acquireReadLock();
 		try {
+			// 根据路径查找处理方法
 			HandlerMethod handlerMethod = lookupHandlerMethod(lookupPath, request);
 			return (handlerMethod != null ? handlerMethod.createWithResolvedBean() : null);
 		}
@@ -610,6 +612,7 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 		 */
 		@Nullable
 		public List<T> getMappingsByDirectPath(String urlPath) {
+			// 首先从pathLookup中获取RequestInfoMappingInfo
 			return this.pathLookup.get(urlPath);
 		}
 
@@ -653,7 +656,12 @@ public abstract class AbstractHandlerMethodMapping<T> extends AbstractHandlerMap
 				// 这就是为什么方法上面的注解不能相同的原因了
 				validateMethodMapping(handlerMethod, mapping);
 
-				// 从注解对象获取访问的url路径
+				// 这里将请求的url与对应的RequestMappingInfo存到一个map中
+				// 在处理请求的时候会先从这里根据请求的路径获取到对应的RequestMappingInfo对象
+				/**
+				 * @see AbstractHandlerMethodMapping#lookupHandlerMethod(java.lang.String, javax.servlet.http.HttpServletRequest)
+				 * @see MappingRegistry#getMappingsByDirectPath(java.lang.String)
+				 */
 				Set<String> directPaths = AbstractHandlerMethodMapping.this.getDirectPaths(mapping);
 				for (String path : directPaths) {
 					this.pathLookup.add(path, mapping);

@@ -197,6 +197,7 @@ public class UrlPathHelper {
 	 * @since 5.3
 	 */
 	public String resolveAndCacheLookupPath(HttpServletRequest request) {
+		// 获取请求路径
 		String lookupPath = getLookupPathForRequest(request);
 		request.setAttribute(PATH_ATTRIBUTE, lookupPath);
 		return lookupPath;

@@ -62,6 +62,7 @@ import org.springframework.web.context.request.async.WebAsyncUtils;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.multipart.MultipartResolver;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 import org.springframework.web.util.NestedServletException;
 import org.springframework.web.util.ServletRequestPathUtils;
 import org.springframework.web.util.WebUtils;
@@ -496,6 +497,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		initMultipartResolver(context);
 		initLocaleResolver(context);
 		initThemeResolver(context);
+		// 这一步极其重要,初始化所有的org.springframework.web.servlet.HandlerMapping对象
 		initHandlerMappings(context);
 		initHandlerAdapters(context);
 		initHandlerExceptionResolvers(context);
@@ -588,11 +590,14 @@ public class DispatcherServlet extends FrameworkServlet {
 
 		if (this.detectAllHandlerMappings) {
 			// Find all HandlerMappings in the ApplicationContext, including ancestor contexts.
+			// 从容器中获取所有的HandlerMapping对象
 			Map<String, HandlerMapping> matchingBeans =
 					BeanFactoryUtils.beansOfTypeIncludingAncestors(context, HandlerMapping.class, true, false);
 			if (!matchingBeans.isEmpty()) {
+				// 放入集合中
 				this.handlerMappings = new ArrayList<>(matchingBeans.values());
 				// We keep HandlerMappings in sorted order.
+				// 通过@Order注解进行排序
 				AnnotationAwareOrderComparator.sort(this.handlerMappings);
 			}
 		}
@@ -1029,10 +1034,12 @@ public class DispatcherServlet extends FrameworkServlet {
 			Exception dispatchException = null;
 
 			try {
+				// 是否是文件上传之类的请求
 				processedRequest = checkMultipart(request);
 				multipartRequestParsed = (processedRequest != request);
 
 				// Determine handler for the current request.
+				// 查找是否有合适的处理器
 				mappedHandler = getHandler(processedRequest);
 				if (mappedHandler == null) {
 					noHandlerFound(processedRequest, response);
@@ -1040,6 +1047,12 @@ public class DispatcherServlet extends FrameworkServlet {
 				}
 
 				// Determine handler adapter for the current request.
+				// 通过不同的处理器获取适配器,这里的获取思路和获取处理器的思路是一样的,会根据排序获取
+				/**
+				 * 默认会获取这个适配器,适配器会方法进行实际的调用
+				 * 适配器模式的完美实现
+				 * @see RequestMappingHandlerAdapter
+				 */
 				HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
 
 				// Process last-modified header, if supported by the handler.
@@ -1052,10 +1065,12 @@ public class DispatcherServlet extends FrameworkServlet {
 					}
 				}
 
+				// 这里对前置拦截器进行调用,这就是为什么前置拦截器如果返回false就直接返回的原因了
 				if (!mappedHandler.applyPreHandle(processedRequest, response)) {
 					return;
 				}
 
+				// 这里运用反射调用实际的方法
 				// Actually invoke the handler.
 				mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
 
@@ -1064,6 +1079,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				}
 
 				applyDefaultViewName(processedRequest, mv);
+				// 这里对拦截器的后置方法进行调用
 				mappedHandler.applyPostHandle(processedRequest, response, mv);
 			}
 			catch (Exception ex) {
@@ -1242,6 +1258,8 @@ public class DispatcherServlet extends FrameworkServlet {
 	}
 
 	/**
+	 * 遍历handlerMapping查找合适的处理器
+	 * @see DispatcherServlet#initHandlerMappings(org.springframework.context.ApplicationContext) 初始化处理器
 	 * Return the HandlerExecutionChain for this request.
 	 * <p>Tries all handler mappings in order.
 	 * @param request current HTTP request
@@ -1252,6 +1270,9 @@ public class DispatcherServlet extends FrameworkServlet {
 		if (this.handlerMappings != null) {
 			for (HandlerMapping mapping : this.handlerMappings) {
 				HandlerExecutionChain handler = mapping.getHandler(request);
+				/**
+				 * 这里一旦找到了处理器就会返回,而排序之后一般默认就是RequestMappingHandlerMapping在第一个
+				 */
 				if (handler != null) {
 					return handler;
 				}

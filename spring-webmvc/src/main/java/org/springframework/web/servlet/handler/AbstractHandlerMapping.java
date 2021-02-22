@@ -488,6 +488,10 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	@Override
 	@Nullable
 	public final HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
+		// 根据请求获取处理器,最麻烦的一个步骤
+		// 大致是会先根据url查找到RequestMappingInfo,然后再根据请求创建一个RequestMappingInfo,然后把这两个对象封装到
+		// 一个Match对象中,最后再从match中获取一个最佳的对象,然后再封装成一个HandlerMethod对象
+		// 这里还会对url中的参数进行处理封装
 		Object handler = getHandlerInternal(request);
 		if (handler == null) {
 			handler = getDefaultHandler();
@@ -501,6 +505,7 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 			handler = obtainApplicationContext().getBean(handlerName);
 		}
 
+		// 这一步是处理所有的拦截器,将handler和所有符合要求的拦截器封装到一个执行链中,责任链模式的完美实现
 		HandlerExecutionChain executionChain = getHandlerExecutionChain(handler, request);
 
 		if (logger.isTraceEnabled()) {
@@ -564,6 +569,7 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 			return UrlPathHelper.defaultInstance.removeSemicolonContent(lookupPath);
 		}
 		else {
+			// 获取url路径匹配器然后处理请求获取路径
 			return getUrlPathHelper().resolveAndCacheLookupPath(request);
 		}
 	}
